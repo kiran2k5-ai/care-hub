@@ -1,0 +1,85 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #1a1a1a;
+  --primary: #2f8fe5;
+  --primary-strong: #1fc8c0;
+  --accent: #1fc8c0;
+  --surface: #f5f7fa;
+  --surface-soft: #f3f5fb;
+  --border: rgba(145, 158, 171, 0.16);
+  --text-muted: #6b7280;
+  --text-placeholder: #9ca3af;
+  --success: #22c55e;
+  --success-surface: #e8f9ee;
+  --stat-pink: #fde8ec;
+  --stat-pink-icon: #e0537a;
+  --stat-blue: #e3f2fd;
+  --stat-blue-icon: #2f8fe5;
+  --stat-purple: #f3e8fd;
+  --stat-purple-icon: #8b5cf6;
+  --stat-orange: #fff3e0;
+  --stat-orange-icon: #f97316;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-space-grotesk), sans-serif;
+}
+
+::selection {
+  background: rgba(29, 78, 216, 0.16);
+}
+
+.glass-panel {
+  backdrop-filter: blur(18px);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(244, 247, 255, 0.9));
+  border: 1px solid var(--border);
+  box-shadow: 0 24px 70px rgba(8, 18, 37, 0.08);
+}
+
+.soft-grid {
+  background-image: linear-gradient(rgba(29, 78, 216, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(29, 78, 216, 0.07) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.brand-card {
+  background: linear-gradient(135deg, rgba(29, 78, 216, 0.95), rgba(15, 118, 110, 0.9));
+  box-shadow: 0 24px 55px rgba(29, 78, 216, 0.2);
+}
+
+.surface-card {
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.04);
+}
+
+.animate-fade-up {
+  animation: fade-up 0.55s ease-out both;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

@@ -1,0 +1,2 @@
+-- Sample seed data is included in schema.sql so the SQL editor can run one script.
+-- Keep this file for local resets or custom fixtures.
