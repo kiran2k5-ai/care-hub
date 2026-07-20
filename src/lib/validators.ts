@@ -38,8 +38,13 @@ export const doctorProfileSchema = z.object({
       return value.split(",").map((item) => item.trim()).filter(Boolean);
     }
     return value;
-  }, z.array(z.string()).min(1)),
+  }, z.array(z.string())),
   availableHours: z.string().trim().min(5).max(50),
+  weeklySlots: z.array(z.object({
+    weekday: z.coerce.number().min(0).max(6),
+    startTime: z.string().trim().regex(/^\d{2}:\d{2}$/),
+    endTime: z.string().trim().regex(/^\d{2}:\d{2}$/),
+  })).optional(),
 });
 
 export const appointmentBookingSchema = z.object({

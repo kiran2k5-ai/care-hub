@@ -64,6 +64,18 @@ export async function getDoctorProfile(userId: string) {
   const { data: profileData } = await supabase.from("profiles").select("full_name, phone, email, avatar_url").eq("id", userId).maybeSingle();
   const profile = (profileData ?? {}) as { full_name?: string; phone?: string | null; email?: string; avatar_url?: string | null };
 
+  const { data: slotsData } = await supabase
+    .from("doctor_availability")
+    .select("weekday, start_time, end_time")
+    .eq("doctor_id", userId)
+    .order("weekday", { ascending: true });
+
+  const weeklySlots = (slotsData ?? []).map((slot) => ({
+    weekday: slot.weekday,
+    startTime: slot.start_time.substring(0, 5),
+    endTime: slot.end_time.substring(0, 5),
+  }));
+
   return {
     id: data.id,
     fullName: profile.full_name ?? "",
@@ -78,6 +90,7 @@ export async function getDoctorProfile(userId: string) {
     bio: data.bio,
     availableDays: data.available_days ?? [],
     availableHours: data.available_hours,
+    weeklySlots,
   };
 }
 

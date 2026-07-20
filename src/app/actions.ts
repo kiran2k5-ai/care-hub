@@ -289,26 +289,40 @@ export async function saveDoctorProfileAction(values: DoctorProfileInput) {
 
   await supabase.from("doctor_availability").delete().eq("doctor_id", authData.user.id);
 
-  const dayMap: Record<string, number> = {
-    sunday: 0,
-    monday: 1,
-    tuesday: 2,
-    wednesday: 3,
-    thursday: 4,
-    friday: 5,
-    saturday: 6,
-  };
+  let newAvailabilities = [];
+  if (payload.weeklySlots && payload.weeklySlots.length > 0) {
+    newAvailabilities = payload.weeklySlots.map((slot) => {
+      const start = slot.startTime.includes(":") && slot.startTime.split(":")[1].length === 2 ? `${slot.startTime}:00` : slot.startTime;
+      const end = slot.endTime.includes(":") && slot.endTime.split(":")[1].length === 2 ? `${slot.endTime}:00` : slot.endTime;
+      return {
+        doctor_id: authData.user.id,
+        weekday: slot.weekday,
+        start_time: start.padEnd(8, ":00"),
+        end_time: end.padEnd(8, ":00"),
+      };
+    });
+  } else {
+    const dayMap: Record<string, number> = {
+      sunday: 0,
+      monday: 1,
+      tuesday: 2,
+      wednesday: 3,
+      thursday: 4,
+      friday: 5,
+      saturday: 6,
+    };
 
-  const [startTimeStr, endTimeStr] = (payload.availableHours || "09:00-17:00").split("-");
-  const startTime = (startTimeStr || "09:00").trim() + (startTimeStr?.includes(":") && startTimeStr.split(":")[1].length === 2 ? ":00" : "");
-  const endTime = (endTimeStr || "17:00").trim() + (endTimeStr?.includes(":") && endTimeStr.split(":")[1].length === 2 ? ":00" : "");
+    const [startTimeStr, endTimeStr] = (payload.availableHours || "09:00-17:00").split("-");
+    const startTime = (startTimeStr || "09:00").trim() + (startTimeStr?.includes(":") && startTimeStr.split(":")[1].length === 2 ? ":00" : "");
+    const endTime = (endTimeStr || "17:00").trim() + (endTimeStr?.includes(":") && endTimeStr.split(":")[1].length === 2 ? ":00" : "");
 
-  const newAvailabilities = payload.availableDays.map(day => ({
-    doctor_id: authData.user.id,
-    weekday: dayMap[day.toLowerCase()],
-    start_time: startTime.padEnd(8, ":00"),
-    end_time: endTime.padEnd(8, ":00"),
-  })).filter(a => a.weekday !== undefined);
+    newAvailabilities = payload.availableDays.map(day => ({
+      doctor_id: authData.user.id,
+      weekday: dayMap[day.toLowerCase()],
+      start_time: startTime.padEnd(8, ":00"),
+      end_time: endTime.padEnd(8, ":00"),
+    })).filter(a => a.weekday !== undefined);
+  }
 
   if (newAvailabilities.length > 0) {
     await supabase.from("doctor_availability").insert(newAvailabilities);

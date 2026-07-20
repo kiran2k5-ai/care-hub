@@ -23,6 +23,50 @@ import Link from "next/link";
 import { saveDoctorProfileAction, saveAvailabilityAction } from "@/app/actions";
 import { doctorProfileSchema, type DoctorProfileInput } from "@/lib/validators";
 
+const WEEKDAYS = [
+  { label: "Monday", value: "monday", weekdayIndex: 1 },
+  { label: "Tuesday", value: "tuesday", weekdayIndex: 2 },
+  { label: "Wednesday", value: "wednesday", weekdayIndex: 3 },
+  { label: "Thursday", value: "thursday", weekdayIndex: 4 },
+  { label: "Friday", value: "friday", weekdayIndex: 5 },
+  { label: "Saturday", value: "saturday", weekdayIndex: 6 },
+  { label: "Sunday", value: "sunday", weekdayIndex: 0 },
+];
+
+function generateHoursSummary(slots: { weekday: number; startTime: string; endTime: string }[]) {
+  if (slots.length === 0) return "Closed";
+  
+  const firstTimeRange = `${slots[0].startTime}-${slots[0].endTime}`;
+  const allSame = slots.every(s => `${s.startTime}-${s.endTime}` === firstTimeRange);
+  
+  if (allSame) {
+    return firstTimeRange;
+  }
+  
+  const dayMapShort: Record<number, string> = {
+    1: "Mon",
+    2: "Tue",
+    3: "Wed",
+    4: "Thu",
+    5: "Fri",
+    6: "Sat",
+    0: "Sun",
+  };
+
+  const sorted = [...slots].sort((a, b) => {
+    const getSortOrder = (w: number) => w === 0 ? 7 : w;
+    return getSortOrder(a.weekday) - getSortOrder(b.weekday);
+  });
+
+  const parts = sorted.map(s => `${dayMapShort[s.weekday]}: ${s.startTime}-${s.endTime}`);
+  const merged = parts.join(", ");
+  
+  if (merged.length > 50) {
+    return merged.substring(0, 47) + "...";
+  }
+  return merged;
+}
+
 export function DoctorProfileClient({ 
   doctorId, 
   profile 
@@ -46,6 +90,7 @@ export function DoctorProfileClient({
       bio: profile?.bio ?? "",
       availableDays: profile?.availableDays ?? ["monday", "tuesday", "wednesday"],
       availableHours: profile?.availableHours ?? "09:00-17:00",
+      weeklySlots: (profile as any)?.weeklySlots ?? [],
     },
   });
 
@@ -61,15 +106,13 @@ export function DoctorProfileClient({
       bio: profile?.bio ?? "",
       availableDays: profile?.availableDays ?? ["monday", "tuesday", "wednesday"],
       availableHours: profile?.availableHours ?? "09:00-17:00",
+      weeklySlots: (profile as any)?.weeklySlots ?? [],
     });
   }, [profile, form]);
 
   const onSubmit = form.handleSubmit((values) => {
     startTransition(async () => {
-      const result = await saveDoctorProfileAction({
-        ...values,
-        availableDays: values.availableDays,
-      });
+      const result = await saveDoctorProfileAction(values);
       if (result?.error) {
         toast.error(result.error);
         return;
@@ -79,20 +122,73 @@ export function DoctorProfileClient({
     });
   });
 
-  const handleAddDefaultSlot = () => {
-    startTransition(async () => {
-      const slot = { weekday: 1, startTime: "09:00", endTime: "12:00" };
-      const result = await saveAvailabilityAction({ doctorId, ...slot });
-      if (result?.error) {
-        toast.error(result.error);
-        return;
+  const handleWeekdayToggle = (weekdayIndex: number, checked: boolean) => {
+    const currentSlots = form.getValues("weeklySlots") ?? [];
+    let updatedSlots = [...currentSlots];
+    if (checked) {
+      if (!updatedSlots.some(s => s.weekday === weekdayIndex)) {
+        updatedSlots.push({ weekday: weekdayIndex, startTime: "09:00", endTime: "17:00" });
       }
-      toast.success("Default morning availability slot added");
-      router.refresh();
+    } else {
+      updatedSlots = updatedSlots.filter(s => s.weekday !== weekdayIndex);
+    }
+    
+    updatedSlots.sort((a, b) => {
+      const getSortOrder = (w: number) => w === 0 ? 7 : w;
+      return getSortOrder(a.weekday) - getSortOrder(b.weekday);
     });
+
+    form.setValue("weeklySlots", updatedSlots, { shouldDirty: true, shouldValidate: true });
+
+    const dayMapRev: Record<number, string> = {
+      1: "monday",
+      2: "tuesday",
+      3: "wednesday",
+      4: "thursday",
+      5: "friday",
+      6: "saturday",
+      0: "sunday",
+    };
+    const days = updatedSlots.map(s => dayMapRev[s.weekday]);
+    form.setValue("availableDays", days, { shouldDirty: true, shouldValidate: true });
+    form.setValue("availableHours", generateHoursSummary(updatedSlots), { shouldDirty: true, shouldValidate: true });
+  };
+
+  const handleTimeChange = (weekdayIndex: number, field: "startTime" | "endTime", value: string) => {
+    const currentSlots = form.getValues("weeklySlots") ?? [];
+    const updatedSlots = currentSlots.map(s => {
+      if (s.weekday === weekdayIndex) {
+        return { ...s, [field]: value };
+      }
+      return s;
+    });
+    form.setValue("weeklySlots", updatedSlots, { shouldDirty: true, shouldValidate: true });
+    form.setValue("availableHours", generateHoursSummary(updatedSlots), { shouldDirty: true, shouldValidate: true });
+  };
+
+  const handleAddDefaultSlot = () => {
+    const currentSlots = form.getValues("weeklySlots") ?? [];
+    if (!currentSlots.some(s => s.weekday === 1)) {
+      const updated = [...currentSlots, { weekday: 1, startTime: "09:00", endTime: "12:00" }];
+      updated.sort((a, b) => {
+        const getSortOrder = (w: number) => w === 0 ? 7 : w;
+        return getSortOrder(a.weekday) - getSortOrder(b.weekday);
+      });
+      form.setValue("weeklySlots", updated, { shouldDirty: true, shouldValidate: true });
+      
+      const dayMapRev: Record<number, string> = {
+        1: "monday", 2: "tuesday", 3: "wednesday", 4: "thursday", 5: "friday", 6: "saturday", 0: "sunday"
+      };
+      form.setValue("availableDays", updated.map(s => dayMapRev[s.weekday]), { shouldDirty: true, shouldValidate: true });
+      form.setValue("availableHours", generateHoursSummary(updated), { shouldDirty: true, shouldValidate: true });
+      toast.success("Default Monday morning slot added to schedule list");
+    } else {
+      toast.info("Monday morning slot is already added or active");
+    }
   };
 
   const selectedDays = form.watch("availableDays") ?? [];
+  const weeklySlots = form.watch("weeklySlots") ?? [];
 
   return (
     <main className="min-h-screen bg-slate-50/50 font-sans flex flex-col justify-between">
@@ -243,27 +339,61 @@ export function DoctorProfileClient({
                     />
                   </div>
 
-                  {/* Availability settings */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
-                    <div className="space-y-2">
-                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Available Days</label>
-                      <input 
-                        type="text"
-                        value={selectedDays.join(",")}
-                        onChange={(e) => form.setValue("availableDays", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-xs text-slate-800 focus:outline-none focus:border-slate-350"
-                      />
-                      <p className="text-[10px] text-slate-400 font-semibold italic">Comma separated list (e.g. monday,tuesday,wednesday)</p>
+                  {/* Daily Availability Settings */}
+                  <div className="pt-6 border-t border-slate-150 space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-450 uppercase tracking-widest">Daily Visiting Hours</label>
+                      <p className="text-slate-500 text-[10px] sm:text-xs mt-1">
+                        Configure customized timing slots for each weekday. Deselect a day if you do not offer consultations on that day.
+                      </p>
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Available Hours range</label>
-                      <input 
-                        type="text"
-                        {...form.register("availableHours")}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-xs text-slate-800 focus:outline-none focus:border-slate-350"
-                      />
-                      <p className="text-[10px] text-slate-400 font-semibold italic">Example range: 09:00-17:00</p>
+                    <div className="bg-slate-50/50 border border-slate-150 rounded-2xl p-4 md:p-6 space-y-4">
+                      {WEEKDAYS.map((day) => {
+                        const activeSlot = weeklySlots.find(s => s.weekday === day.weekdayIndex);
+                        const isActive = !!activeSlot;
+                        
+                        return (
+                          <div key={day.value} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-3 border-b border-slate-100 last:border-0">
+                            {/* Day toggle */}
+                            <div className="flex items-center gap-3 min-w-[140px]">
+                              <input 
+                                type="checkbox"
+                                id={`weekday-${day.value}`}
+                                checked={isActive}
+                                onChange={(e) => handleWeekdayToggle(day.weekdayIndex, e.target.checked)}
+                                className="h-4.5 w-4.5 rounded border-slate-300 text-[#0b665c] focus:ring-[#0b665c] cursor-pointer"
+                              />
+                              <label htmlFor={`weekday-${day.value}`} className="text-xs font-bold text-slate-750 cursor-pointer select-none">
+                                {day.label}
+                              </label>
+                            </div>
+
+                            {/* Time inputs */}
+                            <div className="flex items-center gap-3">
+                              <div className="relative">
+                                <input 
+                                  type="time"
+                                  value={activeSlot?.startTime ?? "09:00"}
+                                  disabled={!isActive}
+                                  onChange={(e) => handleTimeChange(day.weekdayIndex, "startTime", e.target.value)}
+                                  className="bg-white border border-slate-200 disabled:opacity-50 disabled:bg-slate-100 rounded-lg py-1.5 px-3 text-xs text-slate-800 focus:outline-none focus:border-slate-350"
+                                />
+                              </div>
+                              <span className="text-slate-405 text-xs font-medium">to</span>
+                              <div className="relative">
+                                <input 
+                                  type="time"
+                                  value={activeSlot?.endTime ?? "17:00"}
+                                  disabled={!isActive}
+                                  onChange={(e) => handleTimeChange(day.weekdayIndex, "endTime", e.target.value)}
+                                  className="bg-white border border-slate-200 disabled:opacity-50 disabled:bg-slate-100 rounded-lg py-1.5 px-3 text-xs text-slate-800 focus:outline-none focus:border-slate-350"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -306,18 +436,30 @@ export function DoctorProfileClient({
               
               <div className="space-y-3.5 text-xs text-slate-600">
                 <div className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
-                  <span className="font-bold text-[#0b335c]">Available hours</span>
-                  <span className="text-slate-500 font-medium">{form.watch("availableHours") || "09:00-17:00"}</span>
+                  <span className="font-bold text-[#0b335c]">Hours summary</span>
+                  <span className="text-slate-500 font-medium truncate max-w-[150px]" title={form.watch("availableHours") || "Closed"}>
+                    {form.watch("availableHours") || "Closed"}
+                  </span>
                 </div>
                 
                 <div className="space-y-2">
-                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Active Days Summary</span>
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {selectedDays.map((day) => (
-                      <span key={day} className="bg-emerald-50 text-emerald-700 font-bold uppercase text-[9px] tracking-wider px-2.5 py-1 rounded-full border border-emerald-100">
-                        {day}
-                      </span>
-                    ))}
+                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Active Days Schedule</span>
+                  <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                    {weeklySlots.length > 0 ? (
+                      weeklySlots.map((slot) => {
+                        const dayName = WEEKDAYS.find(d => d.weekdayIndex === slot.weekday)?.label ?? "Day";
+                        return (
+                          <div key={slot.weekday} className="flex justify-between items-center bg-emerald-50/40 border border-emerald-100 p-2.5 rounded-xl text-[11px]">
+                            <span className="font-bold text-emerald-800 uppercase tracking-wider">{dayName}</span>
+                            <span className="text-emerald-700 font-bold">{slot.startTime} - {slot.endTime}</span>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="text-center py-4 bg-slate-50 border border-slate-100 rounded-xl text-slate-400 italic text-[11px]">
+                        No visiting hours configured.
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
